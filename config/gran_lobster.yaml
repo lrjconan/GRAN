@@ -1,0 +1,67 @@
+---
+exp_name: GRAN
+exp_dir: exp/GRAN
+runner: GranRunner
+use_horovod: false
+use_gpu: true
+device: cuda:0
+gpus: [0]
+seed: 1234
+dataset:
+  loader_name: GRANData  
+  name: lobster
+  data_path: data/
+  node_order: DFS # k_core/BFS/degree_decent
+  train_ratio: 0.8
+  dev_ratio: 0.2
+  num_subgraph_batch: 25 # number of subgraphs per mini-batch
+  num_fwd_pass: 1
+  has_node_feat: false
+  is_save_split: false
+  is_sample_subgraph: false # set to true if you want to sample subgraphs
+  is_overwrite_precompute: false  
+model:
+  name: GRANMixtureBernoulli
+  num_mix_component: 20  
+  is_sym: true
+  block_size: 1
+  sample_stride: 1
+  max_num_nodes: 100
+  hidden_dim: 128
+  embedding_dim: 128
+  num_GNN_layers: 7
+  num_GNN_prop: 1
+  num_canonical_order: 1  
+  dimension_reduce: true
+  has_attention: true
+  edge_weight: 1.0e+0
+train:
+  optimizer: Adam  
+  lr_decay: 0.3
+  lr_decay_epoch: [100000000] # no decay
+  num_workers: 8
+  max_epoch: 100000
+  batch_size: 20
+  display_iter: 10
+  snapshot_epoch: 1000
+  valid_epoch: 50
+  lr: 1.0e-4
+  wd: 0.0e-4
+  momentum: 0.9
+  shuffle: true
+  is_resume: false
+  resume_epoch: 5000
+  resume_dir: # exp/GRAN/your_exp_folder
+  resume_model: model_snapshot_0005000.pth
+test:
+  batch_size: 20
+  num_workers: 0
+  num_test_gen: 100 # number of generated samples
+  is_vis: true
+  is_single_plot: false # visualize `num_vis` samples in a single image
+  is_test_ER: false # test Erdos-Renyi baseline
+  num_vis: 9
+  vis_num_row: 3 # visualize `num_vis` samples in `vis_num_row` rows
+  better_vis: false
+  test_model_dir: snapshot_model
+  test_model_name: gran_lobster.pth

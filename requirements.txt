@@ -1,0 +1,5 @@
+networkx==2.3
+pyemd
+glob
+tqdm
+tensorboardX
