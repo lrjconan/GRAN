@@ -5,7 +5,7 @@ This is the official PyTorch implementation of [Efficient Graph Generation with 
 ```
 @inproceedings{liao2019gran,
   title={Efficient Graph Generation with Graph Recurrent Attention Networks}, 
-  author={Liao, Renjie and Zhao, Zhizhen and Urtasun, Raquel and Zemel, Richard}, 
+  author={Liao, Renjie and Li, Yujia and Song, Yang and Wang, Shenlong and Nash, Charlie and Hamilton, William L. and Duvenaud, David and Urtasun, Raquel and Zemel, Richard}, 
   booktitle={NeurIPS},
   year={2019}
 }
