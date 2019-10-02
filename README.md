@@ -1,3 +1,4 @@
+
 # GRAN
 
 This is the official PyTorch implementation of [Efficient Graph Generation with Graph Recurrent Attention Networks](http://www.cs.toronto.edu/~rjliao/) as described in the following NeurIPS 2019 paper:
@@ -18,7 +19,7 @@ This is the official PyTorch implementation of [Efficient Graph Generation with 
 
 
 ### Overall generation process:
-![](http://www.cs.toronto.edu/~rjliao/imgs/gran_generation.gif)
+<img src="http://www.cs.toronto.edu/~rjliao/imgs/gran_generation.gif" height="400px" width="600px" />
 
 
 ## Dependencies
@@ -59,7 +60,7 @@ Other dependencies can be installed via
 ### Trained Models
 * You could use our trained model for comparisons. Please make sure you are using the same split of the dataset. Running the following script will download the trained model:
 
-	```./setup```	
+	```./download_model.sh```	
 
 ## Sampled Graphs from GRAN
 

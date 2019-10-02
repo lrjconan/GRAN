@@ -26,6 +26,7 @@ from utils.data_helper import *
 from utils.eval_helper import *
 from utils.dist_helper import compute_mmd, gaussian_emd, gaussian, emd, gaussian_tv
 from utils.vis_helper import draw_graph_list, draw_graph_list_separate
+from utils.data_parallel import DataParallel
 
 
 ###
@@ -165,7 +166,7 @@ class GranRunner(object):
     model = eval(self.model_conf.name)(self.config)
 
     if self.use_gpu:
-      model = nn.DataParallel(model, device_ids=self.gpus).to(self.device)
+      model = DataParallel(model, device_ids=self.gpus).to(self.device)
 
     # create optimizer
     params = filter(lambda p: p.requires_grad, model.parameters())
