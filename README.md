@@ -19,7 +19,7 @@ This is the official PyTorch implementation of [Efficient Graph Generation with 
 
 
 ### Overall generation process:
-<img src="http://www.cs.toronto.edu/~rjliao/imgs/gran_generation.gif" height="400px" width="600px" />
+<img src="http://www.cs.toronto.edu/~rjliao/imgs/gran_generation.gif" height="400px" width="550px" />
 
 
 ## Dependencies

@@ -29,13 +29,16 @@ from utils.vis_helper import draw_graph_list, draw_graph_list_separate
 from utils.data_parallel import DataParallel
 
 
-###
-# workaround for solving the issue of multi-worker
-# https://github.com/pytorch/pytorch/issues/973
-import resource
-rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-resource.setrlimit(resource.RLIMIT_NOFILE, (10000, rlimit[1]))
-###
+try:
+  ###
+  # workaround for solving the issue of multi-worker
+  # https://github.com/pytorch/pytorch/issues/973
+  import resource
+  rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+  resource.setrlimit(resource.RLIMIT_NOFILE, (10000, rlimit[1]))
+  ###
+except:
+  pass
 
 logger = get_logger('exp_logger')
 __all__ = ['GranRunner', 'compute_edge_ratio', 'get_graph', 'evaluate']
@@ -98,6 +101,8 @@ class GranRunner(object):
     self.is_single_plot = config.test.is_single_plot
     self.num_gpus = len(self.gpus)
     self.is_shuffle = False
+
+    assert self.use_gpu == True
 
     if self.train_conf.is_resume:
       self.config.save_dir = self.train_conf.resume_dir
