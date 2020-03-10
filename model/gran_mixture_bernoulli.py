@@ -44,7 +44,7 @@ class GNN(nn.Module):
         nn.Sequential(
             *[
                 nn.Linear(self.node_state_dim + self.edge_feat_dim,
-                          self.msg_dim),                
+                          self.msg_dim),
                 nn.ReLU(),
                 nn.Linear(self.msg_dim, self.msg_dim)
             ]) for _ in range(self.num_layer)
@@ -81,7 +81,7 @@ class GNN(nn.Module):
     else:
       edge_input = state_diff
 
-    msg = self.msg_func[layer_idx](edge_input)    
+    msg = self.msg_func[layer_idx](edge_input)
 
     ### attention on messages
     if self.has_attention:
@@ -179,8 +179,7 @@ class GRANMixtureBernoulli(nn.Module):
         nn.ReLU(inplace=True),
         nn.Linear(self.hidden_dim, self.hidden_dim),
         nn.ReLU(inplace=True),
-        nn.Linear(self.hidden_dim, self.num_mix_component),
-        nn.LogSoftmax(dim=1))
+        nn.Linear(self.hidden_dim, self.num_mix_component))
 
     if self.dimension_reduce:
       self.embedding_dim = config.model.embedding_dim
@@ -254,7 +253,7 @@ class GRANMixtureBernoulli(nn.Module):
 
     ### Pairwise predict edges
     diff = node_state[node_idx_gnn[:, 0], :] - node_state[node_idx_gnn[:, 1], :]
-    
+
     log_theta = self.output_theta(diff)  # B X (tt+K)K
     log_alpha = self.output_alpha(diff)  # B X (tt+K)K
     log_theta = log_theta.view(-1, self.num_mix_component)  # B X CN(N-1)/2 X K
@@ -354,7 +353,7 @@ class GRANMixtureBernoulli(nn.Module):
       log_theta = log_theta.transpose(1, 2)  # B X (ii+K) X K X L
 
       log_alpha = log_alpha.view(B, -1, self.num_mix_component)  # B X K X (ii+K)
-      prob_alpha = log_alpha.mean(dim=1).exp()      
+      prob_alpha = F.softmax(log_alpha.mean(dim=1), -1)
       alpha = torch.multinomial(prob_alpha, 1).squeeze(dim=1).long()
 
       prob = []
@@ -377,7 +376,7 @@ class GRANMixtureBernoulli(nn.Module):
       N: number of rows/columns in mini-batch
       N_max: number of max number of rows/columns
       M: number of augmented edges in mini-batch
-      H: input dimension of GNN 
+      H: input dimension of GNN
       K: block size
       E: number of edges in mini-batch
       S: stride
@@ -385,19 +384,19 @@ class GRANMixtureBernoulli(nn.Module):
       D: number of mixture Bernoulli
 
       Args:
-        A_pad: B X C X N_max X N_max, padded adjacency matrix         
+        A_pad: B X C X N_max X N_max, padded adjacency matrix
         node_idx_gnn: M X 2, node indices of augmented edges
         node_idx_feat: N X 1, node indices of subgraphs for indexing from feature
-                      (0 indicates indexing from 0-th row of feature which is 
-                        always zero and corresponds to newly generated nodes)  
+                      (0 indicates indexing from 0-th row of feature which is
+                        always zero and corresponds to newly generated nodes)
         att_idx: N X 1, one-hot encoding of newly generated nodes
                       (0 indicates existing nodes, 1-D indicates new nodes in
                         the to-be-generated block)
         subgraph_idx: E X 1, indices corresponding to augmented edges
-                      (representing which subgraph in mini-batch the augmented 
+                      (representing which subgraph in mini-batch the augmented
                       edge belongs to)
         edges: E X 2, edge as [incoming node index, outgoing node index]
-        label: E X 1, binary label of augmented edges        
+        label: E X 1, binary label of augmented edges
         num_nodes_pmf: N_max, empirical probability mass function of number of nodes
 
       Returns:
@@ -413,7 +412,7 @@ class GRANMixtureBernoulli(nn.Module):
         'node_idx_gnn'] if 'node_idx_gnn' in input_dict else None
     node_idx_feat = input_dict[
         'node_idx_feat'] if 'node_idx_feat' in input_dict else None
-    att_idx = input_dict['att_idx'] if 'att_idx' in input_dict else None    
+    att_idx = input_dict['att_idx'] if 'att_idx' in input_dict else None
     subgraph_idx = input_dict[
         'subgraph_idx'] if 'subgraph_idx' in input_dict else None
     edges = input_dict['edges'] if 'edges' in input_dict else None
@@ -488,6 +487,7 @@ def mixture_bernoulli_loss(label, log_theta, log_alpha, adj_loss_func,
   reduce_log_alpha = reduce_log_alpha.scatter_add(
       0, subgraph_idx.unsqueeze(1).expand(-1, K), log_alpha)
   reduce_log_alpha = reduce_log_alpha / const.view(-1, 1)
+  reduce_log_alpha = F.log_softmax(reduce_log_alpha, -1)
 
   log_prob = -reduce_adj_loss + reduce_log_alpha
   log_prob = torch.logsumexp(log_prob, dim=1)
