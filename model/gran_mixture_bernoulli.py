@@ -44,7 +44,7 @@ class GNN(nn.Module):
         nn.Sequential(
             *[
                 nn.Linear(self.node_state_dim + self.edge_feat_dim,
-                          self.msg_dim),                
+                          self.msg_dim),
                 nn.ReLU(),
                 nn.Linear(self.msg_dim, self.msg_dim)
             ]) for _ in range(self.num_layer)
@@ -81,7 +81,7 @@ class GNN(nn.Module):
     else:
       edge_input = state_diff
 
-    msg = self.msg_func[layer_idx](edge_input)    
+    msg = self.msg_func[layer_idx](edge_input)
 
     ### attention on messages
     if self.has_attention:
@@ -179,8 +179,7 @@ class GRANMixtureBernoulli(nn.Module):
         nn.ReLU(inplace=True),
         nn.Linear(self.hidden_dim, self.hidden_dim),
         nn.ReLU(inplace=True),
-        nn.Linear(self.hidden_dim, self.num_mix_component),
-        nn.LogSoftmax(dim=1))
+        nn.Linear(self.hidden_dim, self.num_mix_component))
 
     if self.dimension_reduce:
       self.embedding_dim = config.model.embedding_dim
@@ -254,7 +253,7 @@ class GRANMixtureBernoulli(nn.Module):
 
     ### Pairwise predict edges
     diff = node_state[node_idx_gnn[:, 0], :] - node_state[node_idx_gnn[:, 1], :]
-    
+
     log_theta = self.output_theta(diff)  # B X (tt+K)K
     log_alpha = self.output_alpha(diff)  # B X (tt+K)K
     log_theta = log_theta.view(-1, self.num_mix_component)  # B X CN(N-1)/2 X K
@@ -264,112 +263,113 @@ class GRANMixtureBernoulli(nn.Module):
 
   def _sampling(self, B):
     """ generate adj in row-wise auto-regressive fashion """
+    with torch.no_grad():
 
-    K = self.block_size
-    S = self.sample_stride
-    H = self.hidden_dim
-    N = self.max_num_nodes
-    mod_val = (N - K) % S
-    if mod_val > 0:
-      N_pad = N - K - mod_val + int(np.ceil((K + mod_val) / S)) * S
-    else:
-      N_pad = N
-
-    A = torch.zeros(B, N_pad, N_pad).to(self.device)
-    dim_input = self.embedding_dim if self.dimension_reduce else self.max_num_nodes
-
-    ### cache node state for speed up
-    node_state = torch.zeros(B, N_pad, dim_input).to(self.device)
-
-    for ii in range(0, N_pad, S):
-      # for ii in range(0, 3530, S):
-      jj = ii + K
-      if jj > N_pad:
-        break
-
-      # reset to discard overlap generation
-      A[:, ii:, :] = .0
-      A = torch.tril(A, diagonal=-1)
-
-      if ii >= K:
-        if self.dimension_reduce:
-          node_state[:, ii - K:ii, :] = self.decoder_input(A[:, ii - K:ii, :N])
+        K = self.block_size
+        S = self.sample_stride
+        H = self.hidden_dim
+        N = self.max_num_nodes
+        mod_val = (N - K) % S
+        if mod_val > 0:
+          N_pad = N - K - mod_val + int(np.ceil((K + mod_val) / S)) * S
         else:
-          node_state[:, ii - K:ii, :] = A[:, ii - S:ii, :N]
-      else:
-        if self.dimension_reduce:
-          node_state[:, :ii, :] = self.decoder_input(A[:, :ii, :N])
-        else:
-          node_state[:, :ii, :] = A[:, ii - S:ii, :N]
+          N_pad = N
 
-      node_state_in = F.pad(
-          node_state[:, :ii, :], (0, 0, 0, K), 'constant', value=.0)
+        A = torch.zeros(B, N_pad, N_pad).to(self.device)
+        dim_input = self.embedding_dim if self.dimension_reduce else self.max_num_nodes
 
-      ### GNN propagation
-      adj = F.pad(
-          A[:, :ii, :ii], (0, K, 0, K), 'constant', value=1.0)  # B X jj X jj
-      adj = torch.tril(adj, diagonal=-1)
-      adj = adj + adj.transpose(1, 2)
-      edges = [
-          adj[bb].to_sparse().coalesce().indices() + bb * adj.shape[1]
-          for bb in range(B)
-      ]
-      edges = torch.cat(edges, dim=1).t()
+        ### cache node state for speed up
+        node_state = torch.zeros(B, N_pad, dim_input).to(self.device)
 
-      att_idx = torch.cat([torch.zeros(ii).long(),
-                           torch.arange(1, K + 1)]).to(self.device)
-      att_idx = att_idx.view(1, -1).expand(B, -1).contiguous().view(-1, 1)
+        for ii in range(0, N_pad, S):
+          # for ii in range(0, 3530, S):
+          jj = ii + K
+          if jj > N_pad:
+            break
 
-      if self.has_rand_feat:
-        # create random feature
-        att_edge_feat = torch.zeros(edges.shape[0],
-                                    2 * self.att_edge_dim).to(self.device)
-        idx_new_node = (att_idx[[edges[:, 0]]] >
-                        0).long() + (att_idx[[edges[:, 1]]] > 0).long()
-        idx_new_node = idx_new_node.byte().squeeze()
-        att_edge_feat[idx_new_node, :] = torch.randn(
-            idx_new_node.long().sum(), att_edge_feat.shape[1]).to(self.device)
-      else:
-        # create one-hot feature
-        att_edge_feat = torch.zeros(edges.shape[0],
-                                    2 * self.att_edge_dim).to(self.device)
-        att_edge_feat = att_edge_feat.scatter(1, att_idx[[edges[:, 0]]], 1)
-        att_edge_feat = att_edge_feat.scatter(
-            1, att_idx[[edges[:, 1]]] + self.att_edge_dim, 1)
+          # reset to discard overlap generation
+          A[:, ii:, :] = .0
+          A = torch.tril(A, diagonal=-1)
 
-      node_state_out = self.decoder(
-          node_state_in.view(-1, H), edges, edge_feat=att_edge_feat)
-      node_state_out = node_state_out.view(B, jj, -1)
+          if ii >= K:
+            if self.dimension_reduce:
+              node_state[:, ii - K:ii, :] = self.decoder_input(A[:, ii - K:ii, :N])
+            else:
+              node_state[:, ii - K:ii, :] = A[:, ii - S:ii, :N]
+          else:
+            if self.dimension_reduce:
+              node_state[:, :ii, :] = self.decoder_input(A[:, :ii, :N])
+            else:
+              node_state[:, :ii, :] = A[:, ii - S:ii, :N]
 
-      idx_row, idx_col = np.meshgrid(np.arange(ii, jj), np.arange(jj))
-      idx_row = torch.from_numpy(idx_row.reshape(-1)).long().to(self.device)
-      idx_col = torch.from_numpy(idx_col.reshape(-1)).long().to(self.device)
+          node_state_in = F.pad(
+              node_state[:, :ii, :], (0, 0, 0, K), 'constant', value=.0)
 
-      diff = node_state_out[:,idx_row, :] - node_state_out[:,idx_col, :]  # B X (ii+K)K X H
-      diff = diff.view(-1, node_state.shape[2])
-      log_theta = self.output_theta(diff)
-      log_alpha = self.output_alpha(diff)
+          ### GNN propagation
+          adj = F.pad(
+              A[:, :ii, :ii], (0, K, 0, K), 'constant', value=1.0)  # B X jj X jj
+          adj = torch.tril(adj, diagonal=-1)
+          adj = adj + adj.transpose(1, 2)
+          edges = [
+              adj[bb].to_sparse().coalesce().indices() + bb * adj.shape[1]
+              for bb in range(B)
+          ]
+          edges = torch.cat(edges, dim=1).t()
 
-      log_theta = log_theta.view(B, -1, K, self.num_mix_component)  # B X K X (ii+K) X L
-      log_theta = log_theta.transpose(1, 2)  # B X (ii+K) X K X L
+          att_idx = torch.cat([torch.zeros(ii).long(),
+                               torch.arange(1, K + 1)]).to(self.device)
+          att_idx = att_idx.view(1, -1).expand(B, -1).contiguous().view(-1, 1)
 
-      log_alpha = log_alpha.view(B, -1, self.num_mix_component)  # B X K X (ii+K)
-      prob_alpha = log_alpha.mean(dim=1).exp()      
-      alpha = torch.multinomial(prob_alpha, 1).squeeze(dim=1).long()
+          if self.has_rand_feat:
+            # create random feature
+            att_edge_feat = torch.zeros(edges.shape[0],
+                                        2 * self.att_edge_dim).to(self.device)
+            idx_new_node = (att_idx[[edges[:, 0]]] >
+                            0).long() + (att_idx[[edges[:, 1]]] > 0).long()
+            idx_new_node = idx_new_node.byte().squeeze()
+            att_edge_feat[idx_new_node, :] = torch.randn(
+                idx_new_node.long().sum(), att_edge_feat.shape[1]).to(self.device)
+          else:
+            # create one-hot feature
+            att_edge_feat = torch.zeros(edges.shape[0],
+                                        2 * self.att_edge_dim).to(self.device)
+            att_edge_feat = att_edge_feat.scatter(1, att_idx[[edges[:, 0]]], 1)
+            att_edge_feat = att_edge_feat.scatter(
+                1, att_idx[[edges[:, 1]]] + self.att_edge_dim, 1)
 
-      prob = []
-      for bb in range(B):
-        prob += [torch.sigmoid(log_theta[bb, :, :, alpha[bb]])]
+          node_state_out = self.decoder(
+              node_state_in.view(-1, H), edges, edge_feat=att_edge_feat)
+          node_state_out = node_state_out.view(B, jj, -1)
 
-      prob = torch.stack(prob, dim=0)
-      A[:, ii:jj, :jj] = torch.bernoulli(prob[:, :jj - ii, :])
+          idx_row, idx_col = np.meshgrid(np.arange(ii, jj), np.arange(jj))
+          idx_row = torch.from_numpy(idx_row.reshape(-1)).long().to(self.device)
+          idx_col = torch.from_numpy(idx_col.reshape(-1)).long().to(self.device)
 
-    ### make it symmetric
-    if self.is_sym:
-      A = torch.tril(A, diagonal=-1)
-      A = A + A.transpose(1, 2)
+          diff = node_state_out[:,idx_row, :] - node_state_out[:,idx_col, :]  # B X (ii+K)K X H
+          diff = diff.view(-1, node_state.shape[2])
+          log_theta = self.output_theta(diff)
+          log_alpha = self.output_alpha(diff)
 
-    return A
+          log_theta = log_theta.view(B, -1, K, self.num_mix_component)  # B X K X (ii+K) X L
+          log_theta = log_theta.transpose(1, 2)  # B X (ii+K) X K X L
+
+          log_alpha = log_alpha.view(B, -1, self.num_mix_component)  # B X K X (ii+K)
+          prob_alpha = F.softmax(log_alpha.mean(dim=1), -1)
+          alpha = torch.multinomial(prob_alpha, 1).squeeze(dim=1).long()
+
+          prob = []
+          for bb in range(B):
+            prob += [torch.sigmoid(log_theta[bb, :, :, alpha[bb]])]
+
+          prob = torch.stack(prob, dim=0)
+          A[:, ii:jj, :jj] = torch.bernoulli(prob[:, :jj - ii, :])
+
+        ### make it symmetric
+        if self.is_sym:
+          A = torch.tril(A, diagonal=-1)
+          A = A + A.transpose(1, 2)
+
+        return A
 
   def forward(self, input_dict):
     """
@@ -377,7 +377,7 @@ class GRANMixtureBernoulli(nn.Module):
       N: number of rows/columns in mini-batch
       N_max: number of max number of rows/columns
       M: number of augmented edges in mini-batch
-      H: input dimension of GNN 
+      H: input dimension of GNN
       K: block size
       E: number of edges in mini-batch
       S: stride
@@ -385,19 +385,19 @@ class GRANMixtureBernoulli(nn.Module):
       D: number of mixture Bernoulli
 
       Args:
-        A_pad: B X C X N_max X N_max, padded adjacency matrix         
+        A_pad: B X C X N_max X N_max, padded adjacency matrix
         node_idx_gnn: M X 2, node indices of augmented edges
         node_idx_feat: N X 1, node indices of subgraphs for indexing from feature
-                      (0 indicates indexing from 0-th row of feature which is 
-                        always zero and corresponds to newly generated nodes)  
+                      (0 indicates indexing from 0-th row of feature which is
+                        always zero and corresponds to newly generated nodes)
         att_idx: N X 1, one-hot encoding of newly generated nodes
                       (0 indicates existing nodes, 1-D indicates new nodes in
                         the to-be-generated block)
         subgraph_idx: E X 1, indices corresponding to augmented edges
-                      (representing which subgraph in mini-batch the augmented 
+                      (representing which subgraph in mini-batch the augmented
                       edge belongs to)
         edges: E X 2, edge as [incoming node index, outgoing node index]
-        label: E X 1, binary label of augmented edges        
+        label: E X 1, binary label of augmented edges
         num_nodes_pmf: N_max, empirical probability mass function of number of nodes
 
       Returns:
@@ -413,7 +413,7 @@ class GRANMixtureBernoulli(nn.Module):
         'node_idx_gnn'] if 'node_idx_gnn' in input_dict else None
     node_idx_feat = input_dict[
         'node_idx_feat'] if 'node_idx_feat' in input_dict else None
-    att_idx = input_dict['att_idx'] if 'att_idx' in input_dict else None    
+    att_idx = input_dict['att_idx'] if 'att_idx' in input_dict else None
     subgraph_idx = input_dict[
         'subgraph_idx'] if 'subgraph_idx' in input_dict else None
     edges = input_dict['edges'] if 'edges' in input_dict else None
@@ -488,6 +488,7 @@ def mixture_bernoulli_loss(label, log_theta, log_alpha, adj_loss_func,
   reduce_log_alpha = reduce_log_alpha.scatter_add(
       0, subgraph_idx.unsqueeze(1).expand(-1, K), log_alpha)
   reduce_log_alpha = reduce_log_alpha / const.view(-1, 1)
+  reduce_log_alpha = F.log_softmax(reduce_log_alpha, -1)
 
   log_prob = -reduce_adj_loss + reduce_log_alpha
   log_prob = torch.logsumexp(log_prob, dim=1)
