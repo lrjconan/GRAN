@@ -179,7 +179,7 @@ class GRANData(object):
       edges = []
       node_idx_gnn = []
       node_idx_feat = []
-      label = []      
+      label = []
       subgraph_size = []
       subgraph_idx = []
       att_idx = []
@@ -259,13 +259,13 @@ class GRANData(object):
       ### adjust index basis for the selected subgraphs
       cum_size = np.cumsum([0] + subgraph_size).astype(np.int64)
       for ii in range(len(edges)):
-        edges[ii] += cum_size[ii]
-        node_idx_gnn[ii] += cum_size[ii]
+        edges[ii] = edges[ii] + cum_size[ii]
+        node_idx_gnn[ii] = node_idx_gnn[ii] + cum_size[ii]
 
       ### pack tensors
       data = {}
       data['adj'] = np.tril(np.stack(adj_list, axis=0), k=-1)
-      data['edges'] = torch.cat(edges, dim=1).t()
+      data['edges'] = torch.cat(edges, dim=1).t().long()
       data['node_idx_gnn'] = np.concatenate(node_idx_gnn)
       data['node_idx_feat'] = np.concatenate(node_idx_feat)
       data['label'] = np.concatenate(label)
@@ -322,7 +322,7 @@ class GRANData(object):
 
       data['edges'] = torch.cat(
           [bb['edges'] + idx_base[ii] for ii, bb in enumerate(batch_pass)],
-          dim=0)
+          dim=0).long()
 
       data['node_idx_gnn'] = torch.from_numpy(
           np.concatenate(
@@ -359,5 +359,5 @@ class GRANData(object):
 
     end_time = time.time()
     # print('collate time = {}'.format(end_time - start_time))
-    
+
     return batch_data
