@@ -263,112 +263,113 @@ class GRANMixtureBernoulli(nn.Module):
 
   def _sampling(self, B):
     """ generate adj in row-wise auto-regressive fashion """
+    with torch.no_grad():
 
-    K = self.block_size
-    S = self.sample_stride
-    H = self.hidden_dim
-    N = self.max_num_nodes
-    mod_val = (N - K) % S
-    if mod_val > 0:
-      N_pad = N - K - mod_val + int(np.ceil((K + mod_val) / S)) * S
-    else:
-      N_pad = N
-
-    A = torch.zeros(B, N_pad, N_pad).to(self.device)
-    dim_input = self.embedding_dim if self.dimension_reduce else self.max_num_nodes
-
-    ### cache node state for speed up
-    node_state = torch.zeros(B, N_pad, dim_input).to(self.device)
-
-    for ii in range(0, N_pad, S):
-      # for ii in range(0, 3530, S):
-      jj = ii + K
-      if jj > N_pad:
-        break
-
-      # reset to discard overlap generation
-      A[:, ii:, :] = .0
-      A = torch.tril(A, diagonal=-1)
-
-      if ii >= K:
-        if self.dimension_reduce:
-          node_state[:, ii - K:ii, :] = self.decoder_input(A[:, ii - K:ii, :N])
+        K = self.block_size
+        S = self.sample_stride
+        H = self.hidden_dim
+        N = self.max_num_nodes
+        mod_val = (N - K) % S
+        if mod_val > 0:
+          N_pad = N - K - mod_val + int(np.ceil((K + mod_val) / S)) * S
         else:
-          node_state[:, ii - K:ii, :] = A[:, ii - S:ii, :N]
-      else:
-        if self.dimension_reduce:
-          node_state[:, :ii, :] = self.decoder_input(A[:, :ii, :N])
-        else:
-          node_state[:, :ii, :] = A[:, ii - S:ii, :N]
+          N_pad = N
 
-      node_state_in = F.pad(
-          node_state[:, :ii, :], (0, 0, 0, K), 'constant', value=.0)
+        A = torch.zeros(B, N_pad, N_pad).to(self.device)
+        dim_input = self.embedding_dim if self.dimension_reduce else self.max_num_nodes
 
-      ### GNN propagation
-      adj = F.pad(
-          A[:, :ii, :ii], (0, K, 0, K), 'constant', value=1.0)  # B X jj X jj
-      adj = torch.tril(adj, diagonal=-1)
-      adj = adj + adj.transpose(1, 2)
-      edges = [
-          adj[bb].to_sparse().coalesce().indices() + bb * adj.shape[1]
-          for bb in range(B)
-      ]
-      edges = torch.cat(edges, dim=1).t()
+        ### cache node state for speed up
+        node_state = torch.zeros(B, N_pad, dim_input).to(self.device)
 
-      att_idx = torch.cat([torch.zeros(ii).long(),
-                           torch.arange(1, K + 1)]).to(self.device)
-      att_idx = att_idx.view(1, -1).expand(B, -1).contiguous().view(-1, 1)
+        for ii in range(0, N_pad, S):
+          # for ii in range(0, 3530, S):
+          jj = ii + K
+          if jj > N_pad:
+            break
 
-      if self.has_rand_feat:
-        # create random feature
-        att_edge_feat = torch.zeros(edges.shape[0],
-                                    2 * self.att_edge_dim).to(self.device)
-        idx_new_node = (att_idx[[edges[:, 0]]] >
-                        0).long() + (att_idx[[edges[:, 1]]] > 0).long()
-        idx_new_node = idx_new_node.byte().squeeze()
-        att_edge_feat[idx_new_node, :] = torch.randn(
-            idx_new_node.long().sum(), att_edge_feat.shape[1]).to(self.device)
-      else:
-        # create one-hot feature
-        att_edge_feat = torch.zeros(edges.shape[0],
-                                    2 * self.att_edge_dim).to(self.device)
-        att_edge_feat = att_edge_feat.scatter(1, att_idx[[edges[:, 0]]], 1)
-        att_edge_feat = att_edge_feat.scatter(
-            1, att_idx[[edges[:, 1]]] + self.att_edge_dim, 1)
+          # reset to discard overlap generation
+          A[:, ii:, :] = .0
+          A = torch.tril(A, diagonal=-1)
 
-      node_state_out = self.decoder(
-          node_state_in.view(-1, H), edges, edge_feat=att_edge_feat)
-      node_state_out = node_state_out.view(B, jj, -1)
+          if ii >= K:
+            if self.dimension_reduce:
+              node_state[:, ii - K:ii, :] = self.decoder_input(A[:, ii - K:ii, :N])
+            else:
+              node_state[:, ii - K:ii, :] = A[:, ii - S:ii, :N]
+          else:
+            if self.dimension_reduce:
+              node_state[:, :ii, :] = self.decoder_input(A[:, :ii, :N])
+            else:
+              node_state[:, :ii, :] = A[:, ii - S:ii, :N]
 
-      idx_row, idx_col = np.meshgrid(np.arange(ii, jj), np.arange(jj))
-      idx_row = torch.from_numpy(idx_row.reshape(-1)).long().to(self.device)
-      idx_col = torch.from_numpy(idx_col.reshape(-1)).long().to(self.device)
+          node_state_in = F.pad(
+              node_state[:, :ii, :], (0, 0, 0, K), 'constant', value=.0)
 
-      diff = node_state_out[:,idx_row, :] - node_state_out[:,idx_col, :]  # B X (ii+K)K X H
-      diff = diff.view(-1, node_state.shape[2])
-      log_theta = self.output_theta(diff)
-      log_alpha = self.output_alpha(diff)
+          ### GNN propagation
+          adj = F.pad(
+              A[:, :ii, :ii], (0, K, 0, K), 'constant', value=1.0)  # B X jj X jj
+          adj = torch.tril(adj, diagonal=-1)
+          adj = adj + adj.transpose(1, 2)
+          edges = [
+              adj[bb].to_sparse().coalesce().indices() + bb * adj.shape[1]
+              for bb in range(B)
+          ]
+          edges = torch.cat(edges, dim=1).t()
 
-      log_theta = log_theta.view(B, -1, K, self.num_mix_component)  # B X K X (ii+K) X L
-      log_theta = log_theta.transpose(1, 2)  # B X (ii+K) X K X L
+          att_idx = torch.cat([torch.zeros(ii).long(),
+                               torch.arange(1, K + 1)]).to(self.device)
+          att_idx = att_idx.view(1, -1).expand(B, -1).contiguous().view(-1, 1)
 
-      log_alpha = log_alpha.view(B, -1, self.num_mix_component)  # B X K X (ii+K)
-      prob_alpha = F.softmax(log_alpha.mean(dim=1), -1)
-      alpha = torch.multinomial(prob_alpha, 1).squeeze(dim=1).long()
+          if self.has_rand_feat:
+            # create random feature
+            att_edge_feat = torch.zeros(edges.shape[0],
+                                        2 * self.att_edge_dim).to(self.device)
+            idx_new_node = (att_idx[[edges[:, 0]]] >
+                            0).long() + (att_idx[[edges[:, 1]]] > 0).long()
+            idx_new_node = idx_new_node.byte().squeeze()
+            att_edge_feat[idx_new_node, :] = torch.randn(
+                idx_new_node.long().sum(), att_edge_feat.shape[1]).to(self.device)
+          else:
+            # create one-hot feature
+            att_edge_feat = torch.zeros(edges.shape[0],
+                                        2 * self.att_edge_dim).to(self.device)
+            att_edge_feat = att_edge_feat.scatter(1, att_idx[[edges[:, 0]]], 1)
+            att_edge_feat = att_edge_feat.scatter(
+                1, att_idx[[edges[:, 1]]] + self.att_edge_dim, 1)
 
-      prob = []
-      for bb in range(B):
-        prob += [torch.sigmoid(log_theta[bb, :, :, alpha[bb]])]
+          node_state_out = self.decoder(
+              node_state_in.view(-1, H), edges, edge_feat=att_edge_feat)
+          node_state_out = node_state_out.view(B, jj, -1)
 
-      prob = torch.stack(prob, dim=0)
-      A[:, ii:jj, :jj] = torch.bernoulli(prob[:, :jj - ii, :])
+          idx_row, idx_col = np.meshgrid(np.arange(ii, jj), np.arange(jj))
+          idx_row = torch.from_numpy(idx_row.reshape(-1)).long().to(self.device)
+          idx_col = torch.from_numpy(idx_col.reshape(-1)).long().to(self.device)
 
-    ### make it symmetric
-    if self.is_sym:
-      A = torch.tril(A, diagonal=-1)
-      A = A + A.transpose(1, 2)
+          diff = node_state_out[:,idx_row, :] - node_state_out[:,idx_col, :]  # B X (ii+K)K X H
+          diff = diff.view(-1, node_state.shape[2])
+          log_theta = self.output_theta(diff)
+          log_alpha = self.output_alpha(diff)
 
-    return A
+          log_theta = log_theta.view(B, -1, K, self.num_mix_component)  # B X K X (ii+K) X L
+          log_theta = log_theta.transpose(1, 2)  # B X (ii+K) X K X L
+
+          log_alpha = log_alpha.view(B, -1, self.num_mix_component)  # B X K X (ii+K)
+          prob_alpha = F.softmax(log_alpha.mean(dim=1), -1)
+          alpha = torch.multinomial(prob_alpha, 1).squeeze(dim=1).long()
+
+          prob = []
+          for bb in range(B):
+            prob += [torch.sigmoid(log_theta[bb, :, :, alpha[bb]])]
+
+          prob = torch.stack(prob, dim=0)
+          A[:, ii:jj, :jj] = torch.bernoulli(prob[:, :jj - ii, :])
+
+        ### make it symmetric
+        if self.is_sym:
+          A = torch.tril(A, diagonal=-1)
+          A = A + A.transpose(1, 2)
+
+        return A
 
   def forward(self, input_dict):
     """
