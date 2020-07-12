@@ -264,16 +264,16 @@ class GRANData(object):
 
       ### pack tensors
       data = {}
-      data['adj'] = np.tril(np.stack(adj_list, axis=0), k=-1)
-      data['edges'] = torch.cat(edges, dim=1).t().long()
-      data['node_idx_gnn'] = np.concatenate(node_idx_gnn)
-      data['node_idx_feat'] = np.concatenate(node_idx_feat)
-      data['label'] = np.concatenate(label)
-      data['att_idx'] = np.concatenate(att_idx)
-      data['subgraph_idx'] = np.concatenate(subgraph_idx)
-      data['subgraph_count'] = subgraph_count
-      data['num_nodes'] = num_nodes
-      data['subgraph_size'] = subgraph_size
+      data['adj'] = np.tril(np.stack(adj_list, axis=0), k=-1) # true adjacency (one per ordering)
+      data['edges'] = torch.cat(edges, dim=1).t().long() # true previously observed edges (take from adj)
+      data['node_idx_gnn'] = np.concatenate(node_idx_gnn) # index output of GNN after message passing
+      data['node_idx_feat'] = np.concatenate(node_idx_feat) # index input node features (inf if new node)
+      data['label'] = np.concatenate(label) # flattened true augmented edges
+      data['att_idx'] = np.concatenate(att_idx) # x_i in the paper, indicates to GNN whether node is new or not (and which position it is in the new block)
+      data['subgraph_idx'] = np.concatenate(subgraph_idx) # index into the true graph to get subgraph
+      data['subgraph_count'] = subgraph_count # number of subgraphs, not actually used in training
+      data['num_nodes'] = num_nodes # total number of nodes in the graph
+      data['subgraph_size'] = subgraph_size # size of subgrahps, not actually used in training
       data['num_count'] = sum(subgraph_size)
       data_batch += [data]
 
@@ -303,6 +303,9 @@ class GRANData(object):
       subgraph_idx_base = np.array([0] +
                                    [bb['subgraph_count'] for bb in batch_pass])
       subgraph_idx_base = np.cumsum(subgraph_idx_base)
+
+      data['subgraph_idx_base'] = torch.from_numpy(
+        subgraph_idx_base)
 
       data['num_nodes_gt'] = torch.from_numpy(
           np.array([bb['num_nodes'] for bb in batch_pass])).long().view(-1)
