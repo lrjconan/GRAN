@@ -278,7 +278,6 @@ class GRANData(object):
       data_batch += [data]
 
     end_time = time.time()
-    # print('preprocess time = {}'.format(end_time - start_time))
 
     return data_batch
 
@@ -303,6 +302,9 @@ class GRANData(object):
       subgraph_idx_base = np.array([0] +
                                    [bb['subgraph_count'] for bb in batch_pass])
       subgraph_idx_base = np.cumsum(subgraph_idx_base)
+
+      data['subgraph_idx_base'] = torch.from_numpy(
+        subgraph_idx_base)
 
       data['num_nodes_gt'] = torch.from_numpy(
           np.array([bb['num_nodes'] for bb in batch_pass])).long().view(-1)
