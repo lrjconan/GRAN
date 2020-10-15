@@ -5,10 +5,12 @@ Follow the below steps for installing this repo. Some steps may require extra st
     
 2. activate the new conda environment
     conda activate gran
+
+3. (Optional) Download pre-trained models
+    download_model.sh
     
-3. Navigate to the ./utils/orca directory and compile orca.cpp
+4. Navigate to the ./utils/orca directory and compile orca.cpp
     g++ -O2 -std=c++11 -o orca orca.cpp
-    
 
 Running after installation
 
