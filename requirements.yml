@@ -1,0 +1,21 @@
+# https://github.com/lrjconan/GRAN/tree/6c2bb0f9d1ef2fe00dc156b5205e45d74203ba71
+
+name: gran
+channels:
+    - pytorch
+dependencies:
+    - python
+    - pyemd
+    - tqdm
+    - scipy
+    - pyyaml
+    - matplotlib=2.2.3
+    - pip
+    - pytorch=1.4.0
+    - torchvision=0.5.0
+#    - cudatoolkit=10.0
+    - pip:
+        - easydict
+        - tensorboardX
+        - matplotlib
+        - networkx==2.3

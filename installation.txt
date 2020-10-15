@@ -1,0 +1,24 @@
+Follow the below steps for installing this repo. Some steps may require extra steps or tools, depending on the OS.
+
+1. create a conda environment from the requirements.yml file.
+    conda env create -f requirements.yml
+    
+2. activate the new conda environment
+    conda activate gran
+    
+3. Navigate to the ./utils/orca directory and compile orca.cpp
+    g++ -O2 -std=c++11 -o orca orca.cpp
+    
+
+Running after installation
+
+Create a config file similar to those found in ./config/*.yaml
+
+To train a model: python run_exp.py -c <path-to-config>
+
+To test a model: python run_exp.py -c <path-to-config> -t
+
+Keep in mind that testing will require defining the location of the model checkpoint to test with. The path to the checkpoint's directory must be set using the option test.test_model_dir, while the name of the checkpoint file should be test.test_model_name. The location of the saved checkpoint will be 
+<exp_dir>/<model.name>_<dataset.name>_<timestamp>/model_snapshot_<epoch_num>.pth
+
+It is important to correctly set the test_model_dir, as this is where generated images will be stored.
