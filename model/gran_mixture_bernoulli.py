@@ -513,7 +513,6 @@ def mixture_bernoulli_loss(label, log_theta, log_alpha, adj_loss_func,
   bc_const = torch.zeros(B*C).to(label.device)
   bc_size = (subgraph_idx_base[1:] - subgraph_idx_base[:-1]) // C # B
   bc_size = torch.repeat_interleave(bc_size, C) # B*C
-  bc_size = bc_size.to(bc_idx)
   bc_idx = torch.repeat_interleave(bc_idx, bc_size) # S
   bc_log_prob = bc_log_prob.scatter_add(0, bc_idx, log_prob)
   # loss must be normalized for numerical stability

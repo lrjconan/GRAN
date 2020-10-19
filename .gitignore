@@ -102,21 +102,3 @@ venv.bak/
 
 # mypy
 .mypy_cache/
-
-
-#output folder
-exp/
-
-#train data
-data/*
-!data/DD/
-!data/FIRSTMM_DB/
-
-#downloaded snapshots
-snapshot_model/
-
-#compiled orca files (also ignores all extensionless files in orca directory)
-utils/orca/*
-!utils/orca/*/
-!utils/orca/*.*
-utils/orca/orca.exe
