@@ -136,7 +136,7 @@ class GranRunner(object):
     logger.info('No Edges vs. Edges in training set = {}'.format(
         self.config.dataset.sparse_ratio))
 
-    self.num_nodes_pmf_train = np.bincount([len(gg.nodes) for gg in self.graphs_train])    
+    self.num_nodes_pmf_train = np.bincount([len(gg.nodes) for gg in self.graphs_train])[1:]  # remove 'zero occurrence'    
     self.max_num_nodes = len(self.num_nodes_pmf_train)
     self.num_nodes_pmf_train = self.num_nodes_pmf_train / self.num_nodes_pmf_train.sum()
     
