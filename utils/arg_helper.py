@@ -36,7 +36,7 @@ def parse_arguments():
 def get_config(config_file, exp_dir=None, is_test=False):
   """ Construct and snapshot hyper parameters """
   # config = edict(yaml.load(open(config_file, 'r'), Loader=yaml.FullLoader))
-  config = edict(yaml.load(open(config_file, 'r')))
+  config = edict(yaml.safe_load(open(config_file, 'r')))
 
   # create hyper parameters
   config.run_id = str(os.getpid())
