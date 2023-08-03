@@ -58,19 +58,19 @@ class GRANData(object):
   def _get_graph_data(self, G):
     node_degree_list = [(n, d) for n, d in G.degree()]
 
-    adj_0 = np.array(nx.to_numpy_matrix(G))
+    adj_0 = np.array(nx.to_numpy_array(G))
 
     ### Degree descent ranking
     # N.B.: largest-degree node may not be unique
     degree_sequence = sorted(
         node_degree_list, key=lambda tt: tt[1], reverse=True)
     adj_1 = np.array(
-        nx.to_numpy_matrix(G, nodelist=[dd[0] for dd in degree_sequence]))
+        nx.to_numpy_array(G, nodelist=[dd[0] for dd in degree_sequence]))
 
     ### Degree ascent ranking
     degree_sequence = sorted(node_degree_list, key=lambda tt: tt[1])
     adj_2 = np.array(
-        nx.to_numpy_matrix(G, nodelist=[dd[0] for dd in degree_sequence]))
+        nx.to_numpy_array(G, nodelist=[dd[0] for dd in degree_sequence]))
 
     ### BFS & DFS from largest-degree node
     CGs = [G.subgraph(c) for c in nx.connected_components(G)]
@@ -91,8 +91,8 @@ class GRANData(object):
       node_list_bfs += list(bfs_tree.nodes())
       node_list_dfs += list(dfs_tree.nodes())
 
-    adj_3 = np.array(nx.to_numpy_matrix(G, nodelist=node_list_bfs))
-    adj_4 = np.array(nx.to_numpy_matrix(G, nodelist=node_list_dfs))
+    adj_3 = np.array(nx.to_numpy_array(G, nodelist=node_list_bfs))
+    adj_4 = np.array(nx.to_numpy_array(G, nodelist=node_list_dfs))
 
     ### k-core
     num_core = nx.core_number(G)
